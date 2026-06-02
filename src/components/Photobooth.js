@@ -35,7 +35,7 @@ export default function PhotoBooth() {
     const canvasRef = useRef(null);
     const frameImgRef = useRef(null);
 
-    const slots = useMemo([
+    const slots = useMemo(() => [
         { x: 123, y: 78 },
         { x: 123, y: 697 },
         { x: 123, y: 1286 },
