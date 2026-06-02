@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import Webcam from "react-webcam";
 
 const frameOptions = [
@@ -6,17 +6,28 @@ const frameOptions = [
     "/assets/frames/heart-frame-2.png",
     "/assets/frames/heart-frame-3.png",
     "/assets/frames/heart-frame-4.png",
+    "/assets/frames/samawa-1.png",
+    "/assets/frames/samawa-2.png"
 ];
 
 const stickerOptions = [
     "/assets/stickers/leaf.png",
-    "/assets/stickers/sparkles.png"
+    "/assets/stickers/sparkles.png",
+    "/assets/stickers/image1.png",
+    "/assets/stickers/image2.png",
+    "/assets/stickers/image3.png",
+    "/assets/stickers/image4.png",
+    "/assets/stickers/image5.png",
+    "/assets/stickers/image6.png",
+    "/assets/stickers/image7.png",
+    "/assets/stickers/image8.png",
+    "/assets/stickers/image9.png"
 ];
 
 const videoConstraints = { width: 953, height: 599, facingMode: "user" };
 const SLOT_WIDTH = 953;
 const SLOT_HEIGHT = 599;
-
+const RESIZE_HANDLE = 20; // ukuran area handle resize di pojok kanan bawah
 
 export default function PhotoBooth() {
     const webcamRef = useRef(null);
@@ -42,24 +53,11 @@ export default function PhotoBooth() {
 
     const [stickers, setStickers] = useState([]);
     const [draggingSticker, setDraggingSticker] = useState(null);
+    const [resizingSticker, setResizingSticker] = useState(null);
     const [selectedSticker, setSelectedSticker] = useState(null);
-    const row = { display: "flex", gap: 40, alignItems: "flex-start" };
+    const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, size: 0 });
 
-    // useEffects
-
-    // frames
-    useEffect(() => {
-        if (!selectedFrame) return;
-        const img = new Image();
-        img.src = selectedFrame;
-
-        img.onload = () => {
-            frameImgRef.current = img;
-            drawCanvas();
-        }
-    }, [selectedFrame]);
-
-    const drawCanvas = () => {
+    const drawCanvas = useCallback(() => {
         const canvas = canvasRef.current;
         if (!canvas || !frameImgRef.current) return;
 
@@ -86,22 +84,51 @@ export default function PhotoBooth() {
             ctx.drawImage(p.img, dx, dy, drawW, drawH);
             ctx.restore();
         });
-                ctx.drawImage(frameImgRef.current, 0, 0, frameWidth, frameHeight);
+
+        ctx.drawImage(frameImgRef.current, 0, 0, frameWidth, frameHeight);
 
         stickers.forEach((s, i) => {
-            ctx.drawImage(s.img, s.x, s.y, 150, 150);
+            const size = s.size || 200;
+            ctx.drawImage(s.img, s.x, s.y, size, size);
+
             if (i === selectedSticker) {
+                // border selection
                 ctx.strokeStyle = "#ff7aa2";
-                ctx.lineWidth = 4;
-                ctx.strokeRect(s.x, s.y, 150, 150);
+                ctx.lineWidth = 3;
+                ctx.strokeRect(s.x, s.y, size, size);
+
+                // handle resize di pojok kanan bawah
+                ctx.fillStyle = "#ff7aa2";
+                ctx.fillRect(
+                    s.x + size - RESIZE_HANDLE,
+                    s.y + size - RESIZE_HANDLE,
+                    RESIZE_HANDLE,
+                    RESIZE_HANDLE
+                );
+                // icon panah kecil di handle
+                ctx.fillStyle = "white";
+                ctx.font = "bold 12px sans-serif";
+                ctx.fillText("↔", s.x + size - RESIZE_HANDLE + 2, s.y + size - 4);
             }
         });
-    };
+    }, [photos, stickers, selectedSticker, slots]);
 
-    useEffect(drawCanvas, [photos, stickers, selectedSticker, photoCount]);
+    // frames
+    useEffect(() => {
+        if (!selectedFrame) return;
+        const img = new Image();
+        img.src = selectedFrame;
+
+        img.onload = () => {
+            frameImgRef.current = img;
+            drawCanvas();
+        };
+    }, [selectedFrame, drawCanvas]);
+
+    useEffect(drawCanvas, [drawCanvas]);
 
     const handleBack = () => {
-        if (mode == "decorate") {
+        if (mode === "decorate") {
             setMode("photo");
             setCanTakePhoto(false);
             setStickers([]);
@@ -197,9 +224,9 @@ export default function PhotoBooth() {
         };
     };
 
-    // drag photos
     const handleMouseDown = e => {
         const { x, y } = getCoords(e);
+
         if (mode === "photo") {
             for (let i = photos.length - 1; i >= 0; i--) {
                 const p = photos[i];
@@ -207,7 +234,7 @@ export default function PhotoBooth() {
                 const w = p.img.width * p.scale;
                 const h = p.img.height * p.scale;
 
-                if(
+                if (
                     x >= slot.x + p.offsetX &&
                     x <= slot.x + p.offsetX + w &&
                     y >= slot.y + p.offsetY &&
@@ -220,25 +247,42 @@ export default function PhotoBooth() {
                     });
                     return;
                 }
-
             }
         }
 
         if (mode === "decorate") {
-            for(let i = stickers.length - 1; i >= 0; i --){
+            for (let i = stickers.length - 1; i >= 0; i--) {
                 const s = stickers[i];
-                if (x >= s.x && x <= s.x + 150 && y>= s.y && y <= s.y + 150) {
+                const size = s.size || 200;
+
+                // cek apakah klik di handle resize (pojok kanan bawah)
+                if (
+                    x >= s.x + size - RESIZE_HANDLE &&
+                    x <= s.x + size &&
+                    y >= s.y + size - RESIZE_HANDLE &&
+                    y <= s.y + size
+                ) {
+                    setSelectedSticker(i);
+                    setResizingSticker(i);
+                    setResizeStart({ x, y, size });
+                    return;
+                }
+
+                // cek apakah klik di body stiker (drag)
+                if (x >= s.x && x <= s.x + size && y >= s.y && y <= s.y + size) {
                     setDraggingSticker(i);
                     setSelectedSticker(i);
-                    setDragOffset({x: x-s.x, y: y-s.y});
+                    setDragOffset({ x: x - s.x, y: y - s.y });
                     return;
                 }
             }
+            // klik di luar stiker -> deselect
+            setSelectedSticker(null);
         }
     };
 
     const handleMouseMove = e => {
-        const {x,y} = getCoords(e);
+        const { x, y } = getCoords(e);
 
         if (draggingPhoto !== null && mode === "photo") {
             setPhotos(prev => {
@@ -251,13 +295,13 @@ export default function PhotoBooth() {
                 p.offsetX = x - slot.x - dragOffset.x;
                 p.offsetY = y - slot.y - dragOffset.y;
                 p.offsetX = Math.min(Math.max(p.offsetX, SLOT_WIDTH - w), 0);
-                p.offsetY = Math.min(Math.max(p.offsetY, SLOT_HEIGHT - h),0);
+                p.offsetY = Math.min(Math.max(p.offsetY, SLOT_HEIGHT - h), 0);
 
                 return updated;
             });
         }
 
-        if (draggingSticker != null && mode === "decorate") {
+        if (draggingSticker !== null && mode === "decorate") {
             setStickers(s => {
                 const u = [...s];
                 u[draggingSticker] = {
@@ -268,50 +312,63 @@ export default function PhotoBooth() {
                 return u;
             });
         }
+
+        // resize stiker
+        if (resizingSticker !== null && mode === "decorate") {
+            const dx = x - resizeStart.x;
+            const dy = y - resizeStart.y;
+            const delta = (dx + dy) / 2;
+            const newSize = Math.max(40, resizeStart.size + delta); // minimum 40px
+            setStickers(s => {
+                const u = [...s];
+                u[resizingSticker] = { ...u[resizingSticker], size: newSize };
+                return u;
+            });
+        }
     };
 
     const handleMouseUp = () => {
         setDraggingPhoto(null);
         setDraggingSticker(null);
+        setResizingSticker(null);
     };
 
-    // add Sticker
+    // add sticker
     const addSticker = src => {
         const img = new Image();
         img.src = src;
         img.onload = () =>
-            setStickers(s => [...s, {img, x: 400, y: 100}]);
+            setStickers(s => [...s, { img, x: 400, y: 100, size: 200 }]);
     };
 
-    // delete Sticker
+    // delete stiker dengan keyboard
     useEffect(() => {
         const handleKeyDown = e => {
             if (
                 (e.key === "Delete" || e.key === "Backspace") &&
-                selectedSticker != null &&
+                selectedSticker !== null &&
                 mode === "decorate"
-            ){
-                setStickers(s => s.filter((_,i) => i != selectedSticker));
+            ) {
+                setStickers(s => s.filter((_, i) => i !== selectedSticker));
                 setSelectedSticker(null);
             }
         };
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [selectedSticker,mode]);
+    }, [selectedSticker, mode]);
 
-    //download
-
+    // download
     const downloadPhoto = () => {
         const a = document.createElement("a");
-        a.href= canvasRef.current.toDataURL("image.png");
+        a.href = canvasRef.current.toDataURL("image/png");
         a.download = "photo-strip.png";
         a.click();
     };
 
     return (
         <div style={centerCol}>
-            {/* top bar with back btn and text */}
+            {/* top bar */}
             <div style={topBar}>
                 {selectedFrame && (
                     <button
@@ -327,8 +384,8 @@ export default function PhotoBooth() {
                             alignItems: "center",
                             justifyContent: "center",
                         }}
-                    onClick={handleBack}
-                    > ← Back</button>
+                        onClick={handleBack}
+                    >← Back</button>
                 )}
 
                 <h1 style={titleBar}>
@@ -336,16 +393,15 @@ export default function PhotoBooth() {
                         ? "₊✩‧₊˚ Select a frame౨ৎ ˚₊✩‧₊"
                         : mode === "photo"
                             ? "⋆｡‧˚ʚ Smile :)ɞ˚‧｡⋆"
-                            : ". ݁₊ ⊹ . ݁Let’s decorate . ⊹ ₊ ݁."}
-
+                            : ". ݁₊ ⊹ . ݁Let's decorate . ⊹ ₊ ݁."}
                 </h1>
             </div>
-            <div style={mainContent} >
+
+            <div style={mainContent}>
                 {!selectedFrame ? (
                     <div style={{ display: "flex", gap: 24 }}>
                         {frameOptions.map((src) => {
                             const isSelected = selectedFrame === src;
-
                             return (
                                 <img
                                     key={src}
@@ -359,7 +415,6 @@ export default function PhotoBooth() {
                                     onMouseLeave={(e) => {
                                         e.currentTarget.style.transform = "scale(1)";
                                         e.currentTarget.style.boxShadow = frameThumb.boxShadow;
-
                                     }}
                                     style={{
                                         ...frameThumb,
@@ -367,9 +422,8 @@ export default function PhotoBooth() {
                                         transition: "transform 0.25s ease, box-shadow 0.25s ease",
                                         boxShadow: isSelected ? "0 12px 30px rgba(255,122,162,0.45)" : frameThumb.boxShadow,
                                     }}
-
                                 />
-                            )
+                            );
                         })}
                     </div>
                 ) : (
@@ -377,21 +431,17 @@ export default function PhotoBooth() {
                         <div>
                             {mode === "photo" && (
                                 <>
-                                    <div style= {{position: "relative", width: 400 }}>
-                                        {/* Webcam */}
+                                    <div style={{ position: "relative", width: 400 }}>
                                         <Webcam
                                             audio={false}
                                             ref={webcamRef}
                                             screenshotFormat="image/png"
-                                            videoConstraints = {videoConstraints}
-                                            mirrored = {true}
-                                            style={{ width: "100%", borderRadius: 12}}
-                                            />
-
-                                        {/* Overlay countdown */}
-
-                                        {countdown != null && (
-                                            <div style = {{
+                                            videoConstraints={videoConstraints}
+                                            mirrored={true}
+                                            style={{ width: "100%", borderRadius: 12 }}
+                                        />
+                                        {countdown !== null && (
+                                            <div style={{
                                                 position: "absolute",
                                                 inset: 0,
                                                 display: "flex",
@@ -404,94 +454,100 @@ export default function PhotoBooth() {
                                                 background: "rgba(0,0,0,0.25)",
                                                 borderRadius: 12,
                                                 pointerEvents: "none",
-                                            }}
-                                            >
+                                            }}>
                                                 {countdown}
-                                                </div>
+                                            </div>
                                         )}
                                     </div>
 
-                                    {/* Buttons */}
-                                    <div style = {{marginTop: 16, display: "flex", gap:12}}>
+                                    <div style={{ marginTop: 16, display: "flex", gap: 12 }}>
                                         {canTakePhoto && (
                                             <>
                                                 <button style={buttonStyle} onClick={capturePhoto}>
                                                     Take Photo
                                                 </button>
-                                                <label style={{...buttonStyle, cursor: "pointer"}}>
+                                                <label style={{ ...buttonStyle, cursor: "pointer" }}>
                                                     Upload
                                                     <input
                                                         type="file"
-                                                        accept="image /*"
+                                                        accept="image/*"
                                                         onChange={uploadPhoto}
-                                                        style={{ display: "none"}}
-                                                        />
+                                                        style={{ display: "none" }}
+                                                    />
                                                 </label>
                                             </>
                                         )}
-                                        {/* redo btn */}
                                         {photoCount > 0 && (
                                             <button style={{
                                                 ...buttonStyle,
                                                 fontSize: 22,
                                                 padding: "4px 10px"
                                             }}
-                                            onClick = {redoLastPhoto}
+                                                onClick={redoLastPhoto}
                                             >
                                                 ⟳
                                             </button>
                                         )}
-
                                     </div>
                                 </>
                             )}
 
                             {mode === "decorate" && (
-                                stickerOptions.map((src) => (
-                                    <img
-                                        key={src}
-                                        src={src}
-                                        alt="sticker"
-                                        onClick={() => addSticker(src)}
-                                        style={{ width: 50, cursor: "pointer"}}
-                                    />
-                                ))
-                            )
-                            }
+                                <>
+                                    <p style={{ fontFamily: "CantikaCute", color: "#8c5b4a", margin: "0 0 8px" }}>
+                                        Klik stiker untuk tambah ✦
+                                    </p>
+                                    <p style={{ fontSize: 12, color: "#aaa", margin: "0 0 12px" }}>
+                                        Drag untuk pindah • Drag ↔ pojok untuk resize • Delete untuk hapus
+                                    </p>
+                                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, width: 200 }}>
+                                        {stickerOptions.map((src) => (
+                                            <img
+                                                key={src}
+                                                src={src}
+                                                alt="sticker"
+                                                onClick={() => addSticker(src)}
+                                                style={{ width: 50, cursor: "pointer" }}
+                                            />
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                         </div>
 
-                        {/* Display frame */}
-                            <div>
-                                <canvas ref={canvasRef}
+                        {/* Canvas frame */}
+                        <div>
+                            <canvas
+                                ref={canvasRef}
                                 style={{
                                     width: 200,
                                     height: 500,
                                     borderRadius: 16,
                                     boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
+                                    cursor: resizingSticker !== null ? "nwse-resize" : draggingSticker !== null ? "grabbing" : "default"
                                 }}
                                 onMouseDown={handleMouseDown}
                                 onMouseMove={handleMouseMove}
                                 onMouseUp={handleMouseUp}
-                                />
+                            />
 
-                                {mode === "decorate" && (
+                            {mode === "decorate" && (
                                 <div style={{
                                     marginTop: 16,
-                                    display:"flex",
+                                    display: "flex",
                                     justifyContent: "center",
                                 }}>
                                     <button style={buttonStyle} onClick={downloadPhoto}>
                                         Download
                                     </button>
                                 </div>
-                                )}
-                            </div>
+                            )}
+                        </div>
                     </div>
-                )
-                }
+                )}
             </div>
         </div>
-    )
+    );
 }
 
 // styles
@@ -509,7 +565,7 @@ const topBar = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-}
+};
 const buttonStyle = {
     padding: "10px 20px",
     fontSize: 20,
@@ -520,7 +576,6 @@ const buttonStyle = {
     borderRadius: 8,
     background: "white"
 };
-
 const row = { display: "flex", gap: 40, alignItems: "flex-start" };
 const frameThumb = {
     width: 180,
@@ -528,18 +583,16 @@ const frameThumb = {
     borderRadius: 12,
     boxShadow: "0 8px 8px rgba(0,0,0,0.15)"
 };
-
 const titleBar = {
     margin: 0,
-    lineHeight: "60px",      // vertical center
-    textAlign: "center",     // horizontal center
-    width: "100%",            // occupy full width of top bar
-}
-
+    lineHeight: "60px",
+    textAlign: "center",
+    width: "100%",
+};
 const mainContent = {
-    height: 600, // fixed content height
+    height: 600,
     width: 700,
     display: "flex",
     justifyContent: "center",
     alignItems: "flex-start",
-}
+};

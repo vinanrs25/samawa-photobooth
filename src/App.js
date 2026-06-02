@@ -23,10 +23,10 @@ function App() {
         <img src={logoSrc} alt="JiggleDuo Logo" style={{ width: 50 }} />
         <h1 style={{
           fontFamily: "CantikaCute",
-          color: "#8c5b4a",
+          color: "#002366",
           margin: 0
         }}>
-          JiggleDuo Photobooth
+          Samawa
         </h1>
       </div>
 
