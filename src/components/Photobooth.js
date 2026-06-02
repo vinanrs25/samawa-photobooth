@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from "react";
+import React, { useRef, useState, useMemo, useEffect, useCallback } from "react";
 import Webcam from "react-webcam";
 
 const frameOptions = [
@@ -8,6 +8,7 @@ const frameOptions = [
     "/assets/frames/heart-frame-4.png",
     "/assets/frames/samawa-1.png",
     "/assets/frames/samawa-2.png"
+
 ];
 
 const stickerOptions = [
@@ -34,12 +35,12 @@ export default function PhotoBooth() {
     const canvasRef = useRef(null);
     const frameImgRef = useRef(null);
 
-    const slots = [
+    const slots = useMemo([
         { x: 123, y: 78 },
         { x: 123, y: 697 },
         { x: 123, y: 1286 },
         { x: 123, y: 1885 }
-    ];
+    ]);
 
     const [selectedFrame, setSelectedFrame] = useState(null);
     const [mode, setMode] = useState("photo");
